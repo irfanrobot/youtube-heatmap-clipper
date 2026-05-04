@@ -116,9 +116,9 @@ def build_subtitle_force_style():
     alignment = "2" if SUBTITLE_LOCATION == "bottom" else "5"
     margin_v = "40" if SUBTITLE_LOCATION == "bottom" else "0"
     return (
-        f"FontName={SUBTITLE_FONT},FontSize=12,Bold=1,"
+        f"FontName={SUBTITLE_FONT},FontSize=10,Bold=1,"
         f"PrimaryColour=&HFFFFFF,OutlineColour=&H000000,"
-        f"BorderStyle=1,Outline=2,Shadow=1,"
+        f"BorderStyle=1,Outline=0.5,Shadow=0,"
         f"Alignment={alignment},MarginV={margin_v}"
     )
 
@@ -651,8 +651,14 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 except Exception:
                     pass
 
+        err_msg = e.stderr.strip() if e.stderr else (e.stdout.strip() if e.stdout else str(e))
         print(f"Failed to generate this clip.")
-        print(f"Error details: {e.stderr if e.stderr else e.stdout}")
+        print(f"Error details: {err_msg}")
+        if callable(event_hook):
+            try:
+                event_hook("error", {"error": f"Clip {index} failed: {err_msg}"})
+            except Exception:
+                pass
         return False
     except Exception as e:
         # Cleanup temp files
@@ -665,6 +671,11 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
 
         print(f"Failed to generate this clip.")
         print(f"Error: {str(e)}")
+        if callable(event_hook):
+            try:
+                event_hook("error", {"error": f"Clip {index} failed: {str(e)}"})
+            except Exception:
+                pass
         return False
 
 

@@ -5,6 +5,8 @@ import sys
 import threading
 import time
 import uuid
+import urllib.request
+import urllib.parse
 from types import SimpleNamespace
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
@@ -143,13 +145,24 @@ def run_job(job_id, payload):
             if not targets:
                 raise ValueError("Segment pilihan invalid")
         elif mode == "custom":
-            start_s = parse_time_to_seconds(payload.get("start"))
-            end_s = parse_time_to_seconds(payload.get("end"))
-            if start_s is None or end_s is None:
+            custom_segments = payload.get("custom_segments", [])
+            if not custom_segments and payload.get("start") and payload.get("end"):
+                custom_segments = [{"start": payload.get("start"), "end": payload.get("end")}]
+                
+            if not custom_segments:
                 raise ValueError("Start/End belum diisi")
-            if end_s <= start_s:
-                raise ValueError("End harus lebih besar dari Start")
-            targets = [{"start": float(start_s), "duration": float(end_s - start_s), "score": 1.0}]
+                
+            for seg in custom_segments:
+                start_s = parse_time_to_seconds(seg.get("start"))
+                end_s = parse_time_to_seconds(seg.get("end"))
+                if start_s is None or end_s is None:
+                    continue
+                if end_s <= start_s:
+                    raise ValueError("End harus lebih besar dari Start")
+                targets.append({"start": float(start_s), "duration": float(end_s - start_s), "score": 1.0})
+                
+            if not targets:
+                raise ValueError("Segmen custom invalid")
         else:
             add_log(job_id, "Scan heatmap...")
             segments = core.ambil_most_replayed(video_id)
@@ -160,11 +173,12 @@ def run_job(job_id, payload):
         set_job(job_id, total=len(targets), done=0, status_text="processing")
 
         def event_hook(kind, data):
-            if kind != "stage" or not isinstance(data, dict):
-                return
-            stage = data.get("stage") or ""
-            clip_index = safe_int(data.get("clip_index"), 0) or 0
-            set_job(job_id, stage=stage, stage_at=now_ms(), stage_clip=clip_index)
+            if kind == "error" and isinstance(data, dict):
+                set_job(job_id, error=data.get("error"))
+            elif kind == "stage" and isinstance(data, dict):
+                stage = data.get("stage") or ""
+                clip_index = safe_int(data.get("clip_index"), 0) or 0
+                set_job(job_id, stage=stage, stage_at=now_ms(), stage_clip=clip_index)
 
         success = 0
         for idx, item in enumerate(targets, start=1):
@@ -198,29 +212,48 @@ def get_preview(url):
         if cached:
             return cached
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "yt_dlp",
-        "--skip-download",
-        "-J",
-        key,
-    ]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        raise RuntimeError((res.stderr or res.stdout or "Gagal ambil metadata").strip())
+    # Attempt to use YouTube oEmbed API for faster and more reliable metadata fetching
+    try:
+        oembed_url = f"https://www.youtube.com/oembed?url={urllib.parse.quote(key)}&format=json"
+        req = urllib.request.Request(oembed_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            raw = json.loads(response.read().decode('utf-8'))
+        
+        video_id = core.extract_video_id(key)
+        
+        preview = {
+            "title": raw.get("title"),
+            "thumbnail": raw.get("thumbnail_url"),
+            "uploader": raw.get("author_name"),
+            "duration": None, # oEmbed doesn't provide duration
+            "webpage_url": key,
+            "id": video_id,
+        }
+    except Exception as e:
+        # Fallback to yt-dlp if oEmbed fails
+        cmd = [
+            sys.executable,
+            "-m",
+            "yt_dlp",
+            "--skip-download",
+            "-J",
+            key,
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise RuntimeError((res.stderr or res.stdout or "Gagal ambil metadata").strip())
 
-    raw = json.loads(res.stdout)
-    item = raw["entries"][0] if isinstance(raw, dict) and "entries" in raw and raw.get("entries") else raw
+        raw = json.loads(res.stdout)
+        item = raw["entries"][0] if isinstance(raw, dict) and "entries" in raw and raw.get("entries") else raw
 
-    preview = {
-        "title": item.get("title"),
-        "thumbnail": item.get("thumbnail"),
-        "uploader": item.get("uploader"),
-        "duration": item.get("duration"),
-        "webpage_url": item.get("webpage_url") or key,
-        "id": item.get("id"),
-    }
+        preview = {
+            "title": item.get("title"),
+            "thumbnail": item.get("thumbnail"),
+            "uploader": item.get("uploader"),
+            "duration": item.get("duration"),
+            "webpage_url": item.get("webpage_url") or key,
+            "id": item.get("id"),
+        }
 
     with preview_lock:
         preview_cache[key] = preview

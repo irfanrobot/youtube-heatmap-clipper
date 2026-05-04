@@ -67,6 +67,8 @@ const I18N = {
     "js.stage.finalize": "Finalize",
     "js.stage.done_clip": "Selesai",
     "js.topprogress.processing": "Processing",
+    "label.custom_segments": "Segmen Custom",
+    "btn.add_segment": "+ Tambah Segmen",
   },
   en: {
     "top.tagline": "Scan Most Replayed, auto cut, clean subtitles.",
@@ -134,6 +136,8 @@ const I18N = {
     "js.stage.finalize": "Finalize",
     "js.stage.done_clip": "Done",
     "js.topprogress.processing": "Processing",
+    "label.custom_segments": "Custom Segments",
+    "btn.add_segment": "+ Add Segment",
   },
 };
 
@@ -342,6 +346,14 @@ function readPayload() {
   const fontSel = $("subtitle_font_select").value;
   const fontCustom = ($("subtitle_font_custom").value || "").trim();
   const subtitleFont = fontSel === "custom" ? fontCustom : fontSel;
+  
+  const custom_segments = [];
+  document.querySelectorAll("#customSegmentsContainer > div").forEach(div => {
+    const start = div.querySelector(".custom-start").value.trim();
+    const end = div.querySelector(".custom-end").value.trim();
+    if (start || end) custom_segments.push({ start, end });
+  });
+
   return {
     url: $("url").value,
     mode: $("mode").value,
@@ -354,8 +366,7 @@ function readPayload() {
     subtitle_font: subtitleFont,
     subtitle_location: $("subtitle_location").value,
     subtitle_fontsdir: $("subtitle_fontsdir").value || "",
-    start: $("start").value || "",
-    end: $("end").value || "",
+    custom_segments,
   };
 }
 
@@ -483,8 +494,7 @@ function renderSegments(segments) {
         return;
       }
       if ($("mode").value === "custom") {
-        $("start").value = Math.floor(start);
-        $("end").value = Math.floor(end);
+        addCustomSegment(Math.floor(start), Math.floor(end));
         return;
       }
       if (selectedKeys.has(key)) selectedKeys.delete(key);
@@ -524,10 +534,11 @@ function renderProgress(job) {
       : "";
   root.appendChild(line);
 
-  if (job.status === "error") {
+  if (job.error) {
     const err = document.createElement("div");
     err.className = "small";
-    err.textContent = job.error || "error";
+    err.style.color = "#ff4444";
+    err.textContent = job.error;
     root.appendChild(err);
   }
 
@@ -634,6 +645,37 @@ async function pollJob(jobId) {
   }
 }
 
+function addCustomSegment(startVal = "", endVal = "") {
+  const container = $("customSegmentsContainer");
+  const div = document.createElement("div");
+  div.className = "grid2";
+  div.style.alignItems = "end";
+  div.style.marginBottom = "8px";
+  div.innerHTML = `
+    <div class="row" style="margin-bottom:0;">
+      <label class="label" data-i18n="label.start">Start (detik/mm:ss)</label>
+      <input class="input custom-start" placeholder="misal: 689 atau 11:29" value="${startVal}" />
+    </div>
+    <div class="row" style="margin-bottom:0;">
+      <label class="label" data-i18n="label.end">End (detik/mm:ss)</label>
+      <div style="display: flex; gap: 8px;">
+        <input class="input custom-end" placeholder="misal: 742 atau 12:22" value="${endVal}" style="flex: 1;" />
+        <button class="btn ghost smallBtn remove-segment-btn" type="button" style="padding: 0 12px;" aria-label="Remove">✕</button>
+      </div>
+    </div>
+  `;
+  
+  div.querySelector(".remove-segment-btn").addEventListener("click", () => {
+    div.remove();
+    if (container.children.length === 0) {
+      addCustomSegment();
+    }
+  });
+  
+  container.appendChild(div);
+  applyI18n();
+}
+
 function toggleMode() {
   const isCustom = $("mode").value === "custom";
   $("customBox").classList.toggle("hide", !isCustom);
@@ -641,6 +683,9 @@ function toggleMode() {
   if (isCustom) {
     setSegControlsVisible(false);
     $("segSelectedMeta").textContent = "";
+    if ($("customSegmentsContainer").children.length === 0) {
+      addCustomSegment();
+    }
   } else {
     setSegControlsVisible(lastScanSegments.length > 0);
     updateSelectedUi();
@@ -654,6 +699,7 @@ function toggleFont() {
 
 $("mode").addEventListener("change", toggleMode);
 $("subtitle_font_select").addEventListener("change", toggleFont);
+$("addCustomSegmentBtn")?.addEventListener("click", () => addCustomSegment());
 $("url").addEventListener("input", debounce(preview, 500));
 $("scanBtn").addEventListener("click", scan);
 $("clipBtn").addEventListener("click", clip);
