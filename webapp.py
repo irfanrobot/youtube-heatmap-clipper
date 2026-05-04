@@ -97,6 +97,7 @@ def run_job(job_id, payload):
 
         crop = payload.get("crop") or "default"
         ratio = payload.get("ratio") or "9:16"
+        force_shorts_ratio = bool(payload.get("force_shorts_ratio", False))
         subtitle = bool(payload.get("subtitle"))
         whisper_model = payload.get("whisper_model") or "small"
         subtitle_font = payload.get("subtitle_font") or "Arial"
@@ -195,7 +196,7 @@ def run_job(job_id, payload):
         success = 0
         for idx, item in enumerate(targets, start=1):
             set_job(job_id, current=idx, status_text=f"clip {idx}/{len(targets)}")
-            ok = core.proses_satu_clip(video_id, item, idx, total_duration, crop, subtitle, event_hook=event_hook, is_local_file=is_local_file)
+            ok = core.proses_satu_clip(video_id, item, idx, total_duration, crop, subtitle, event_hook=event_hook, is_local_file=is_local_file, force_shorts_ratio=force_shorts_ratio)
             if ok:
                 success += 1
             set_job(job_id, done=idx, success=success, outputs=list_outputs(job_dir))

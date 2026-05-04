@@ -368,6 +368,7 @@ function readPayload() {
     url: $("url").value,
     mode: $("mode").value,
     ratio: $("ratio").value,
+    force_shorts_ratio: $("force_shorts_ratio")?.checked || false,
     crop: $("crop").value,
     padding: Number($("padding").value || 0),
     max_clips: Number($("max_clips").value || 6),

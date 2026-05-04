@@ -395,7 +395,7 @@ def format_timestamp(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False):
+def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False, force_shorts_ratio=False):
     """
     Download, crop, and export a single vertical clip
     based on a heatmap segment.
@@ -404,6 +404,7 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
         crop_mode: "default", "split_left", or "split_right"
         use_subtitle: whether to generate and burn subtitle
         is_local_file: if True, video_id is treated as a local file path
+        force_shorts_ratio: if True, final video will be padded to 9:16 (720x1280)
     """
     start_original = item["start"]
     end_original = item["start"] + item["duration"]
@@ -486,18 +487,24 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
         time_args = ["-ss", str(start), "-to", str(end)] if is_local_file else []
         
         out_w, out_h = OUT_WIDTH, OUT_HEIGHT
+        pad_filter = "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:-1:-1:color=black"
+        
         if crop_mode == "default":
             if OUTPUT_RATIO == "original":
+                vf = pad_filter if force_shorts_ratio else None
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     *time_args,
                     "-i", input_file,
+                    *(["-vf", vf] if vf else []),
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
                     cropped_file
                 ]
             else:
                 vf = build_cover_scale_crop_vf(out_w, out_h)
+                if force_shorts_ratio:
+                    vf += "," + pad_filter
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     *time_args,
@@ -510,11 +517,13 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
         elif crop_mode == "split_left":
             if OUTPUT_RATIO == "original" or not out_w or not out_h or out_h < out_w:
                 vf = build_cover_scale_crop_vf(out_w or 720, out_h or 1280) if OUTPUT_RATIO != "original" else None
+                if force_shorts_ratio:
+                    vf = (vf + "," + pad_filter) if vf else pad_filter
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     *time_args,
                     "-i", input_file,
-                    *([] if not vf else ["-vf", vf]),
+                    *(["-vf", vf] if vf else []),
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
                     cropped_file
@@ -529,6 +538,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                     f"[s2]crop={out_w}:{bottom_h}:0:ih-{bottom_h}[bottom];"
                     f"[top][bottom]vstack[out]"
                 )
+                if force_shorts_ratio:
+                    vf += f";[out]{pad_filter}[out]"
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     *time_args,
@@ -542,11 +553,13 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
         elif crop_mode == "split_right":
             if OUTPUT_RATIO == "original" or not out_w or not out_h or out_h < out_w:
                 vf = build_cover_scale_crop_vf(out_w or 720, out_h or 1280) if OUTPUT_RATIO != "original" else None
+                if force_shorts_ratio:
+                    vf = (vf + "," + pad_filter) if vf else pad_filter
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     *time_args,
                     "-i", input_file,
-                    *([] if not vf else ["-vf", vf]),
+                    *(["-vf", vf] if vf else []),
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
                     cropped_file
@@ -561,6 +574,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                     f"[s2]crop={out_w}:{bottom_h}:iw-{out_w}:ih-{bottom_h}[bottom];"
                     f"[top][bottom]vstack[out]"
                 )
+                if force_shorts_ratio:
+                    vf += f";[out]{pad_filter}[out]"
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     *time_args,
