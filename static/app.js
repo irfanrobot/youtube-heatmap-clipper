@@ -347,6 +347,15 @@ function readPayload() {
   const fontCustom = ($("subtitle_font_custom").value || "").trim();
   const subtitleFont = fontSel === "custom" ? fontCustom : fontSel;
   
+  // Convert hex color #RRGGBB to ASS format &HBBGGRR
+  let subtitleColor = $("subtitle_color")?.value || "#ffffff";
+  if (subtitleColor.startsWith("#") && subtitleColor.length === 7) {
+    const r = subtitleColor.substr(1, 2);
+    const g = subtitleColor.substr(3, 2);
+    const b = subtitleColor.substr(5, 2);
+    subtitleColor = `&H${b}${g}${r}`;
+  }
+  
   const custom_segments = [];
   document.querySelectorAll("#customSegmentsContainer > div").forEach(div => {
     const start = div.querySelector(".custom-start").value.trim();
@@ -355,6 +364,7 @@ function readPayload() {
   });
 
   return {
+    source_type: $("source_type")?.value || "youtube",
     url: $("url").value,
     mode: $("mode").value,
     ratio: $("ratio").value,
@@ -366,7 +376,11 @@ function readPayload() {
     subtitle_font: subtitleFont,
     subtitle_location: $("subtitle_location").value,
     subtitle_fontsdir: $("subtitle_fontsdir").value || "",
+    subtitle_size: Number($("subtitle_size")?.value || 12),
+    subtitle_color: subtitleColor,
+    subtitle_shadow: Number($("subtitle_shadow")?.value || 1),
     custom_segments,
+    duration: currentLocalDuration
   };
 }
 
@@ -571,6 +585,19 @@ let lastPreviewUrl = "";
 let currentPreview = null;
 let currentVideoId = "";
 let selectedKeys = new Set();
+let currentLocalDuration = null;
+
+$("local_file")?.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const video = document.createElement("video");
+  video.preload = "metadata";
+  video.onloadedmetadata = () => {
+    window.URL.revokeObjectURL(video.src);
+    currentLocalDuration = video.duration;
+  };
+  video.src = URL.createObjectURL(file);
+});
 
 async function scan() {
   setBusy(true);
@@ -622,7 +649,30 @@ async function clip() {
   setBusy(true);
   try {
     const payload = readPayload();
-    const data = await postJson("/api/clip", payload);
+    let res;
+    if (payload.source_type === "local") {
+      const fileInput = $("local_file");
+      if (!fileInput.files.length) throw new Error("Please select a local video file first.");
+      
+      const formData = new FormData();
+      formData.append("video_file", fileInput.files[0]);
+      formData.append("payload", JSON.stringify(payload));
+      
+      res = await fetch("/api/clip", {
+        method: "POST",
+        body: formData
+      });
+    } else {
+      res = await fetch("/api/clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+    
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || "Failed to start clip job");
+    
     const jobId = data.job_id;
     await pollJob(jobId);
   } catch (e) {
@@ -692,11 +742,27 @@ function toggleMode() {
   }
 }
 
+function toggleSource() {
+  const isLocal = $("source_type")?.value === "local";
+  $("url_row")?.classList.toggle("hide", isLocal);
+  $("local_file_row")?.classList.toggle("hide", !isLocal);
+  
+  if (isLocal) {
+    $("mode").value = "custom";
+    $("mode").disabled = true;
+    $("preview")?.classList.add("hide");
+    toggleMode();
+  } else {
+    $("mode").disabled = false;
+  }
+}
+
 function toggleFont() {
   const isCustom = $("subtitle_font_select").value === "custom";
   $("subtitle_font_custom").classList.toggle("hide", !isCustom);
 }
 
+$("source_type")?.addEventListener("change", toggleSource);
 $("mode").addEventListener("change", toggleMode);
 $("subtitle_font_select").addEventListener("change", toggleFont);
 $("addCustomSegmentBtn")?.addEventListener("click", () => addCustomSegment());
@@ -717,6 +783,7 @@ document.addEventListener("keydown", (e) => {
 currentLang = localStorage.getItem("lang") || document.documentElement.lang || "id";
 currentLang = currentLang === "en" ? "en" : "id";
 applyI18n();
+toggleSource();
 toggleMode();
 toggleFont();
 renderSegments([]);

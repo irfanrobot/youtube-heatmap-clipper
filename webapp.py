@@ -88,8 +88,11 @@ def run_job(job_id, payload):
     try:
         set_job(job_id, status="running", started_at=started)
 
+        is_local_file = payload.get("is_local_file", False)
+        local_file_path = payload.get("local_file_path")
+        
         url = (payload.get("url") or "").strip()
-        if not url:
+        if not is_local_file and not url:
             raise ValueError("URL kosong")
 
         crop = payload.get("crop") or "default"
@@ -99,6 +102,9 @@ def run_job(job_id, payload):
         subtitle_font = payload.get("subtitle_font") or "Arial"
         subtitle_location = payload.get("subtitle_location") or "bottom"
         subtitle_fontsdir = payload.get("subtitle_fontsdir") or None
+        subtitle_size = safe_int(payload.get("subtitle_size"), 12)
+        subtitle_color = payload.get("subtitle_color") or "&HFFFFFF"
+        subtitle_shadow = safe_int(payload.get("subtitle_shadow"), 1)
         if not subtitle_fontsdir and os.path.isdir("fonts"):
             subtitle_fontsdir = "fonts"
         padding = safe_int(payload.get("padding"), 10)
@@ -110,6 +116,9 @@ def run_job(job_id, payload):
         core.SUBTITLE_FONT = subtitle_font
         core.SUBTITLE_FONTS_DIR = subtitle_fontsdir
         core.SUBTITLE_LOCATION = subtitle_location
+        core.SUBTITLE_SIZE = subtitle_size
+        core.SUBTITLE_COLOR = subtitle_color
+        core.SUBTITLE_SHADOW = subtitle_shadow
         core.PADDING = max(0, padding if padding is not None else 10)
         core.set_ratio_preset(ratio)
 
@@ -122,11 +131,14 @@ def run_job(job_id, payload):
         if not ok:
             raise RuntimeError("FFmpeg tidak ketemu")
 
-        video_id = core.extract_video_id(url)
-        if not video_id:
-            raise ValueError("URL YouTube invalid")
-
-        total_duration = core.get_duration(video_id)
+        if is_local_file:
+            video_id = local_file_path
+            total_duration = payload.get("duration") or 3600
+        else:
+            video_id = core.extract_video_id(url)
+            if not video_id:
+                raise ValueError("URL YouTube invalid")
+            total_duration = core.get_duration(video_id)
 
         targets = []
         picked = payload.get("segments")
@@ -183,7 +195,7 @@ def run_job(job_id, payload):
         success = 0
         for idx, item in enumerate(targets, start=1):
             set_job(job_id, current=idx, status_text=f"clip {idx}/{len(targets)}")
-            ok = core.proses_satu_clip(video_id, item, idx, total_duration, crop, subtitle, event_hook=event_hook)
+            ok = core.proses_satu_clip(video_id, item, idx, total_duration, crop, subtitle, event_hook=event_hook, is_local_file=is_local_file)
             if ok:
                 success += 1
             set_job(job_id, done=idx, success=success, outputs=list_outputs(job_dir))
@@ -191,6 +203,14 @@ def run_job(job_id, payload):
         set_job(job_id, status="done", finished_at=now_ms(), outputs=list_outputs(job_dir))
     except Exception as e:
         set_job(job_id, status="error", error=str(e), finished_at=now_ms())
+    finally:
+        if payload.get("is_local_file") and payload.get("local_file_path"):
+            path = payload.get("local_file_path")
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
 
 
 @app.get("/")
@@ -294,7 +314,28 @@ def api_scan():
 
 @app.post("/api/clip")
 def api_clip():
-    payload = request.get_json(silent=True) or {}
+    is_local = False
+    local_file_path = None
+    
+    if request.content_type and "multipart/form-data" in request.content_type:
+        payload_str = request.form.get("payload", "{}")
+        try:
+            payload = json.loads(payload_str)
+        except Exception:
+            payload = {}
+            
+        video_file = request.files.get("video_file")
+        if video_file and video_file.filename:
+            is_local = True
+            os.makedirs("uploads", exist_ok=True)
+            local_file_path = os.path.join("uploads", f"{uuid.uuid4().hex}_{video_file.filename}")
+            video_file.save(local_file_path)
+    else:
+        payload = request.get_json(silent=True) or {}
+        
+    payload["is_local_file"] = is_local
+    payload["local_file_path"] = local_file_path
+
     job_id = uuid.uuid4().hex[:12]
     with jobs_lock:
         jobs[job_id] = {

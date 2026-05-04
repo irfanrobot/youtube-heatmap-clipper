@@ -61,9 +61,23 @@
         </div>
 
         <div class="row">
+          <label class="label">Source</label>
+          <select id="source_type" class="input">
+            <option value="youtube">YouTube URL</option>
+            <option value="local">Local File (Upload)</option>
+          </select>
+        </div>
+
+        <div class="row" id="url_row">
           <label class="label" data-i18n="label.url">YouTube URL</label>
           <input id="url" class="input" placeholder="https://www.youtube.com/watch?v=..." data-i18n-placeholder="ph.url" />
           <div class="help" data-i18n="help.url">Tempel link video/shorts. Nanti keluar preview.</div>
+        </div>
+
+        <div class="row hide" id="local_file_row">
+          <label class="label">Local Video File</label>
+          <input type="file" id="local_file" class="input" accept="video/mp4,video/x-m4v,video/*" />
+          <div class="help">Pilih file video dari komputer kamu.</div>
         </div>
 
         <div class="grid2">
@@ -156,6 +170,21 @@
           <label class="label" data-i18n="label.subtitle_fontsdir">Fonts dir (opsional)</label>
           <input id="subtitle_fontsdir" class="input" value="fonts" placeholder="fonts atau C:\fonts (isi .ttf/.otf)" />
           <div class="help" data-i18n="help.subtitle_fontsdir">Folder berisi file .ttf/.otf buat subtitle. Default: folder project <b>fonts</b>.</div>
+        </div>
+
+        <div class="grid3">
+          <div class="row">
+            <label class="label">Subtitle Size</label>
+            <input id="subtitle_size" class="input" type="number" min="8" max="72" value="12" />
+          </div>
+          <div class="row">
+            <label class="label">Subtitle Color</label>
+            <input id="subtitle_color" type="color" class="input" style="padding: 0; height: 38px; width: 100%; cursor: pointer;" value="#ffffff" />
+          </div>
+          <div class="row">
+            <label class="label">Shadow Size</label>
+            <input id="subtitle_shadow" class="input" type="number" min="0" max="10" value="1" />
+          </div>
         </div>
 
         <div id="customBox" class="hide" style="margin-top: 16px;">

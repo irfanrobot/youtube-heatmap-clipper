@@ -23,6 +23,9 @@ WHISPER_MODEL = "small"    # Whisper model size: tiny, base, small, medium, larg
 SUBTITLE_FONT = "Arial"
 SUBTITLE_FONTS_DIR = None
 SUBTITLE_LOCATION = "bottom"
+SUBTITLE_SIZE = 12
+SUBTITLE_COLOR = "&HFFFFFF"
+SUBTITLE_SHADOW = 1
 OUTPUT_RATIO = "9:16"
 OUT_WIDTH = 720
 OUT_HEIGHT = 1280
@@ -116,9 +119,9 @@ def build_subtitle_force_style():
     alignment = "2" if SUBTITLE_LOCATION == "bottom" else "5"
     margin_v = "40" if SUBTITLE_LOCATION == "bottom" else "0"
     return (
-        f"FontName={SUBTITLE_FONT},FontSize=10,Bold=1,"
-        f"PrimaryColour=&HFFFFFF,OutlineColour=&H000000,"
-        f"BorderStyle=1,Outline=0.5,Shadow=0,"
+        f"FontName={SUBTITLE_FONT},FontSize={SUBTITLE_SIZE},Bold=1,"
+        f"PrimaryColour={SUBTITLE_COLOR},OutlineColour=&H000000,"
+        f"BorderStyle=1,Outline=2,Shadow={SUBTITLE_SHADOW},"
         f"Alignment={alignment},MarginV={margin_v}"
     )
 
@@ -392,7 +395,7 @@ def format_timestamp(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None):
+def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False):
     """
     Download, crop, and export a single vertical clip
     based on a heatmap segment.
@@ -400,6 +403,7 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
     Args:
         crop_mode: "default", "split_left", or "split_right"
         use_subtitle: whether to generate and burn subtitle
+        is_local_file: if True, video_id is treated as a local file path
     """
     start_original = item["start"]
     end_original = item["start"] + item["duration"]
@@ -425,33 +429,33 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
         except Exception:
             pass
 
-    cmd_download = [
-        sys.executable, "-m", "yt_dlp",
-        "--force-ipv4",
-        "--quiet", "--no-warnings",
-        "--downloader", "ffmpeg",
-        "--downloader-args",
-        f"ffmpeg_i:-ss {start} -to {end} -hide_banner -loglevel error",
-        "--merge-output-format", "mkv",
-        "-f",
-        "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
-        "-o", temp_file,
-        f"https://youtu.be/{video_id}"
-    ]
-    cmd_download_fallback = [
-        sys.executable, "-m", "yt_dlp",
-        "--force-ipv4",
-        "--quiet", "--no-warnings",
-        "--downloader", "ffmpeg",
-        "--downloader-args",
-        f"ffmpeg_i:-ss {start} -to {end} -hide_banner -loglevel error",
-        "--merge-output-format", "mkv",
-        "-f", "bv*+ba/b",
-        "-o", temp_file,
-        f"https://youtu.be/{video_id}"
-    ]
+    if not is_local_file:
+        cmd_download = [
+            sys.executable, "-m", "yt_dlp",
+            "--force-ipv4",
+            "--quiet", "--no-warnings",
+            "--downloader", "ffmpeg",
+            "--downloader-args",
+            f"ffmpeg_i:-ss {start} -to {end} -hide_banner -loglevel error",
+            "--merge-output-format", "mkv",
+            "-f",
+            "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
+            "-o", temp_file,
+            f"https://youtu.be/{video_id}"
+        ]
+        cmd_download_fallback = [
+            sys.executable, "-m", "yt_dlp",
+            "--force-ipv4",
+            "--quiet", "--no-warnings",
+            "--downloader", "ffmpeg",
+            "--downloader-args",
+            f"ffmpeg_i:-ss {start} -to {end} -hide_banner -loglevel error",
+            "--merge-output-format", "mkv",
+            "-f", "bv*+ba/b",
+            "-o", temp_file,
+            f"https://youtu.be/{video_id}"
+        ]
 
-    try:
         try:
             subprocess.run(
                 cmd_download,
@@ -477,12 +481,17 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
             print("Failed to download video segment.")
             return False
 
+    try:
+        input_file = video_id if is_local_file else temp_file
+        time_args = ["-ss", str(start), "-to", str(end)] if is_local_file else []
+        
         out_w, out_h = OUT_WIDTH, OUT_HEIGHT
         if crop_mode == "default":
             if OUTPUT_RATIO == "original":
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", temp_file,
+                    *time_args,
+                    "-i", input_file,
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
                     cropped_file
@@ -491,7 +500,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 vf = build_cover_scale_crop_vf(out_w, out_h)
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", temp_file,
+                    *time_args,
+                    "-i", input_file,
                     "-vf", vf,
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
@@ -502,7 +512,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 vf = build_cover_scale_crop_vf(out_w or 720, out_h or 1280) if OUTPUT_RATIO != "original" else None
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", temp_file,
+                    *time_args,
+                    "-i", input_file,
                     *([] if not vf else ["-vf", vf]),
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
@@ -520,7 +531,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 )
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", temp_file,
+                    *time_args,
+                    "-i", input_file,
                     "-filter_complex", vf,
                     "-map", "[out]", "-map", "0:a?",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
@@ -532,7 +544,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 vf = build_cover_scale_crop_vf(out_w or 720, out_h or 1280) if OUTPUT_RATIO != "original" else None
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", temp_file,
+                    *time_args,
+                    "-i", input_file,
                     *([] if not vf else ["-vf", vf]),
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
                     "-c:a", "aac", "-b:a", "128k",
@@ -550,7 +563,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 )
                 cmd_crop = [
                     "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", temp_file,
+                    *time_args,
+                    "-i", input_file,
                     "-filter_complex", vf,
                     "-map", "[out]", "-map", "0:a?",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
@@ -572,7 +586,8 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
             text=True
         )
 
-        os.remove(temp_file)
+        if not is_local_file and os.path.exists(temp_file):
+            os.remove(temp_file)
 
         # Generate and burn subtitle if enabled
         if use_subtitle:
