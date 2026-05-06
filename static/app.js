@@ -381,7 +381,7 @@ function readPayload() {
     padding: Number($("padding").value || 0),
     max_clips: Number($("max_clips").value || 6),
     subtitle: $("subtitle").value === "y",
-    translate_subtitle: $("translate_subtitle")?.checked || false,
+    translate_subtitle: $("translate_subtitle")?.value || "",
     whisper_model: $("whisper_model").value,
     subtitle_font: subtitleFont,
     subtitle_location: $("subtitle_location").value,
@@ -784,6 +784,60 @@ function toggleSubtitle() {
   $("subtitle_settings_wrap")?.classList.toggle("hide", isSubtitleNo);
 }
 
+const CONFIG_KEYS = [
+  "source_type", "mode", "ratio", "force_shorts_ratio", "crop", "padding",
+  "max_clips", "subtitle", "translate_subtitle", "whisper_model",
+  "subtitle_font_select", "subtitle_font_custom", "subtitle_location",
+  "subtitle_size", "subtitle_color", "subtitle_outline", "subtitle_outline_color"
+];
+
+function saveConfig() {
+  const config = {};
+  CONFIG_KEYS.forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    if (el.type === "checkbox") {
+      config[id] = el.checked;
+    } else {
+      config[id] = el.value;
+    }
+  });
+  localStorage.setItem("ythc_config", JSON.stringify(config));
+}
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem("ythc_config");
+    if (!saved) return;
+    const config = JSON.parse(saved);
+    CONFIG_KEYS.forEach(id => {
+      if (config[id] !== undefined) {
+        const el = $(id);
+        if (!el) return;
+        if (el.type === "checkbox") {
+          el.checked = config[id];
+        } else {
+          el.value = config[id];
+        }
+      }
+    });
+  } catch (e) {
+    console.error("Failed to load config", e);
+  }
+}
+
+function bindConfigSavers() {
+  CONFIG_KEYS.forEach(id => {
+    const el = $(id);
+    if (el) {
+      el.addEventListener("change", saveConfig);
+      if (el.type === "text" || el.type === "number" || el.type === "color") {
+        el.addEventListener("input", saveConfig);
+      }
+    }
+  });
+}
+
 $("source_type")?.addEventListener("change", toggleSource);
 $("mode")?.addEventListener("change", toggleMode);
 $("subtitle")?.addEventListener("change", toggleSubtitle);
@@ -806,6 +860,10 @@ document.addEventListener("keydown", (e) => {
 currentLang = localStorage.getItem("lang") || document.documentElement.lang || "id";
 currentLang = currentLang === "en" ? "en" : "id";
 applyI18n();
+
+loadConfig();
+bindConfigSavers();
+
 toggleSource();
 toggleMode();
 toggleSubtitle();

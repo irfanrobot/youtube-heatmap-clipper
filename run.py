@@ -326,7 +326,24 @@ def get_duration(video_id):
     return 3600
 
 
-def generate_subtitle(video_file, subtitle_file, event_hook=None, translate=False):
+import urllib.request
+import urllib.parse
+import json
+
+def gtranslate(text, target_lang="en"):
+    if not text.strip():
+        return text
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={urllib.parse.quote(text)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            res = "".join([d[0] for d in data[0]])
+            return res
+    except Exception:
+        return ""
+
+def generate_subtitle(video_file, subtitle_file, event_hook=None, translate_target=""):
     """
     Generate subtitle file using Faster-Whisper for the given video.
     Returns True if successful, False otherwise.
@@ -348,10 +365,7 @@ def generate_subtitle(video_file, subtitle_file, event_hook=None, translate=Fals
                 event_hook("stage", {"stage": "subtitle_transcribe"})
             except Exception:
                 pass
-        if translate:
-            segments, info = model.transcribe(video_file, task="translate")
-        else:
-            segments, info = model.transcribe(video_file, language="id")
+        segments, info = model.transcribe(video_file)
         return segments
 
     try:
@@ -382,6 +396,11 @@ def generate_subtitle(video_file, subtitle_file, event_hook=None, translate=Fals
             start_time = format_timestamp(segment.start)
             end_time = format_timestamp(segment.end)
             text = segment.text.strip()
+            
+            if translate_target:
+                translated = gtranslate(text, translate_target)
+                if translated:
+                    text = f"{text}\n{translated}"
 
             f.write(f"{i}\n")
             f.write(f"{start_time} --> {end_time}\n")
@@ -401,7 +420,7 @@ def format_timestamp(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False, force_shorts_ratio=False, translate_subtitle=False):
+def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False, force_shorts_ratio=False, translate_subtitle=""):
     """
     Download, crop, and export a single vertical clip
     based on a heatmap segment.
@@ -411,7 +430,7 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
         use_subtitle: whether to generate and burn subtitle
         is_local_file: if True, video_id is treated as a local file path
         force_shorts_ratio: if True, final video will be padded to 9:16 (720x1280)
-        translate_subtitle: if True, translates subtitle to English via Whisper
+        translate_subtitle: string code of target language for bilingual subtitles, or empty string
     """
     start_original = item["start"]
     end_original = item["start"] + item["duration"]
@@ -656,7 +675,7 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 except Exception:
                     pass
             print("  Generating subtitle...")
-            if generate_subtitle(cropped_file, subtitle_file, event_hook=event_hook, translate=translate_subtitle):
+            if generate_subtitle(cropped_file, subtitle_file, event_hook=event_hook, translate_target=translate_subtitle):
                 if callable(event_hook):
                     try:
                         event_hook("stage", {"stage": "burn_subtitle", "clip_index": index})

@@ -138,9 +138,20 @@
         </div>
 
         <div id="subtitle_settings_wrap" class="hide">
-          <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-            <input type="checkbox" id="translate_subtitle" />
-            <label for="translate_subtitle" style="font-size: 14px; font-weight: 500; cursor: pointer;">Translate to English (Auto-Translate via Whisper)</label>
+          <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+            <label class="label" style="margin: 0; width: auto;">Adding Translation</label>
+            <select id="translate_subtitle" class="input" style="width: 50%;">
+              <option value="">No Translation</option>
+              <option value="en">English</option>
+              <option value="id">Indonesian</option>
+              <option value="ja">Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="zh-CN">Chinese</option>
+              <option value="ar">Arabic</option>
+            </select>
           </div>
           <div class="grid3">
             <div class="row">
