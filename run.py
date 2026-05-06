@@ -25,7 +25,8 @@ SUBTITLE_FONTS_DIR = None
 SUBTITLE_LOCATION = "bottom"
 SUBTITLE_SIZE = 12
 SUBTITLE_COLOR = "&HFFFFFF"
-SUBTITLE_SHADOW = 1
+SUBTITLE_OUTLINE = 2
+SUBTITLE_OUTLINE_COLOR = "&H000000"
 OUTPUT_RATIO = "9:16"
 OUT_WIDTH = 720
 OUT_HEIGHT = 1280
@@ -116,12 +117,14 @@ def escape_subtitles_filter_dir(path):
     return abs_path.replace("\\", "/").replace(":", "\\:")
 
 def build_subtitle_force_style():
-    alignment = "2" if SUBTITLE_LOCATION == "bottom" else "5"
+    # FFmpeg interprets SRT conversions using standard SSA alignment by default.
+    # In SSA: 2 = Bottom Center, 10 = Middle Center (5 is Top Left!)
+    alignment = "2" if SUBTITLE_LOCATION == "bottom" else "10"
     margin_v = "40" if SUBTITLE_LOCATION == "bottom" else "0"
     return (
         f"FontName={SUBTITLE_FONT},FontSize={SUBTITLE_SIZE},Bold=1,"
-        f"PrimaryColour={SUBTITLE_COLOR},OutlineColour=&H000000,"
-        f"BorderStyle=1,Outline=2,Shadow={SUBTITLE_SHADOW},"
+        f"PrimaryColour={SUBTITLE_COLOR},OutlineColour={SUBTITLE_OUTLINE_COLOR},BackColour=&H00000000,"
+        f"BorderStyle=1,Outline={SUBTITLE_OUTLINE},Shadow=0,"
         f"Alignment={alignment},MarginV={margin_v}"
     )
 
@@ -323,7 +326,7 @@ def get_duration(video_id):
     return 3600
 
 
-def generate_subtitle(video_file, subtitle_file, event_hook=None):
+def generate_subtitle(video_file, subtitle_file, event_hook=None, translate=False):
     """
     Generate subtitle file using Faster-Whisper for the given video.
     Returns True if successful, False otherwise.
@@ -345,7 +348,10 @@ def generate_subtitle(video_file, subtitle_file, event_hook=None):
                 event_hook("stage", {"stage": "subtitle_transcribe"})
             except Exception:
                 pass
-        segments, info = model.transcribe(video_file, language="id")
+        if translate:
+            segments, info = model.transcribe(video_file, task="translate")
+        else:
+            segments, info = model.transcribe(video_file, language="id")
         return segments
 
     try:
@@ -395,16 +401,17 @@ def format_timestamp(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False, force_shorts_ratio=False):
+def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default", use_subtitle=False, event_hook=None, is_local_file=False, force_shorts_ratio=False, translate_subtitle=False):
     """
     Download, crop, and export a single vertical clip
     based on a heatmap segment.
     
     Args:
-        crop_mode: "default", "split_left", or "split_right"
+        crop_mode: "default", "split_left", "split_right", or "split_right_left"
         use_subtitle: whether to generate and burn subtitle
         is_local_file: if True, video_id is treated as a local file path
         force_shorts_ratio: if True, final video will be padded to 9:16 (720x1280)
+        translate_subtitle: if True, translates subtitle to English via Whisper
     """
     start_original = item["start"]
     end_original = item["start"] + item["duration"]
@@ -586,6 +593,43 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                     "-c:a", "aac", "-b:a", "128k",
                     cropped_file
                 ]
+        elif crop_mode == "split_right_left":
+            if OUTPUT_RATIO == "original" or not out_w or not out_h or out_h < out_w:
+                vf = build_cover_scale_crop_vf(out_w or 720, out_h or 1280) if OUTPUT_RATIO != "original" else None
+                if force_shorts_ratio:
+                    vf = (vf + "," + pad_filter) if vf else pad_filter
+                cmd_crop = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    *time_args,
+                    "-i", input_file,
+                    *(["-vf", vf] if vf else []),
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
+                    "-c:a", "aac", "-b:a", "128k",
+                    cropped_file
+                ]
+            else:
+                target_h = out_h // 2
+                ar_expr = f"{out_w}/{target_h}"
+                scaled = f"scale='if(gte(iw/ih,{ar_expr}),-2,{out_w})':'if(gte(iw/ih,{ar_expr}),{target_h},-2)'"
+                vf = (
+                    f"{scaled}[scaled];"
+                    f"[scaled]split=2[s1][s2];"
+                    f"[s1]crop={out_w}:{target_h}:0:(ih-{target_h})/2[top];"
+                    f"[s2]crop={out_w}:{target_h}:iw-{out_w}:(ih-{target_h})/2[bottom];"
+                    f"[top][bottom]vstack[out]"
+                )
+                if force_shorts_ratio:
+                    vf += f";[out]{pad_filter}[out]"
+                cmd_crop = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    *time_args,
+                    "-i", input_file,
+                    "-filter_complex", vf,
+                    "-map", "[out]", "-map", "0:a?",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
+                    "-c:a", "aac", "-b:a", "128k",
+                    cropped_file
+                ]
 
         if callable(event_hook):
             try:
@@ -612,7 +656,7 @@ def proses_satu_clip(video_id, item, index, total_duration, crop_mode="default",
                 except Exception:
                     pass
             print("  Generating subtitle...")
-            if generate_subtitle(cropped_file, subtitle_file, event_hook=event_hook):
+            if generate_subtitle(cropped_file, subtitle_file, event_hook=event_hook, translate=translate_subtitle):
                 if callable(event_hook):
                     try:
                         event_hook("stage", {"stage": "burn_subtitle", "clip_index": index})

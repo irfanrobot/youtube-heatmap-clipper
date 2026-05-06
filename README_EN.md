@@ -272,13 +272,13 @@ sudo apt install ffmpeg
 
 ### Subtitle Customization
 
-Edit line ~368 in `run.py` to customize subtitle style:
+Edit `build_subtitle_force_style()` in `run.py` to customize subtitle style further:
 
 ```python
-# Current style (white text, black outline):
-BorderStyle=1,Outline=3,Shadow=2,MarginV=30
+# Current style (white text, black outline, no shadow):
+BorderStyle=1,Outline=2,Shadow=0,MarginV=40
 
-# Large text:
+# Large text with thick outline:
 FontSize=28,Outline=4
 
 # Position higher (avoid facecam):

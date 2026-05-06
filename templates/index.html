@@ -81,7 +81,7 @@
         </div>
 
         <div class="grid2">
-          <div class="row">
+          <div class="row" id="mode_wrap">
             <label class="label" data-i18n="label.mode">Mode</label>
             <select id="mode" class="input">
               <option value="heatmap" data-i18n="opt.mode.heatmap">Scan heatmap (Most Replayed)</option>
@@ -112,82 +112,97 @@
               <option value="default" selected data-i18n="opt.crop.default">Default</option>
               <option value="split_left" data-i18n="opt.crop.split_left">Split Left</option>
               <option value="split_right" data-i18n="opt.crop.split_right">Split Right</option>
+              <option value="split_right_left">Split Right-Left</option>
             </select>
             <div class="help" data-i18n="help.crop">Split itu buat gaming: atas gameplay, bawah facecam.</div>
           </div>
-          <div class="row">
+          <div class="row" id="padding_wrap">
             <label class="label" data-i18n="label.padding">Padding (detik)</label>
             <input id="padding" class="input" type="number" min="0" value="10" />
             <div class="help" data-i18n="help.padding">Nambah detik sebelum & sesudah momen biar nggak “kepotong nanggung”.</div>
           </div>
-          <div class="row">
+          <div class="row" id="max_clips_wrap">
             <label class="label" data-i18n="label.max_clips">Max clips</label>
             <input id="max_clips" class="input" type="number" min="1" value="6" />
             <div class="help" data-i18n="help.max_clips">Berapa potongan yang mau dihasilkan dari heatmap.</div>
           </div>
         </div>
 
-        <div class="grid3">
-          <div class="row">
-            <label class="label" data-i18n="label.subtitle">Subtitle</label>
-            <select id="subtitle" class="input">
-              <option value="n" selected data-i18n="opt.no">No</option>
-              <option value="y" data-i18n="opt.yes">Yes</option>
-            </select>
-            <div class="help" data-i18n="help.subtitle">Kalau Yes, audio ditranskrip jadi teks lalu dibakar ke video.</div>
-          </div>
-          <div class="row">
-            <label class="label" data-i18n="label.whisper_model">Model (Whisper)</label>
-            <select id="whisper_model" class="input">
-              <option value="tiny">tiny</option>
-              <option value="base">base</option>
-              <option value="small" selected>small</option>
-              <option value="medium">medium</option>
-              <option value="large-v3">large-v3</option>
-            </select>
-            <div class="help" data-i18n="help.whisper_model">Ini model AI buat transkripsi suara ke teks. Makin besar makin akurat, makin berat.</div>
-          </div>
-          <div class="row">
-            <label class="label" data-i18n="label.subtitle_font">Font Subtitle</label>
-            <select id="subtitle_font_select" class="input">
-              <option value="Plus Jakarta Sans" selected>Plus Jakarta Sans</option>
-              <option value="Montserrat">Montserrat</option>
-              <option value="Roboto">Roboto</option>
-              <option value="Arial">Arial</option>
-              <option value="custom" data-i18n="opt.custom">Custom…</option>
-            </select>
-            <input id="subtitle_font_custom" class="input hide" placeholder="Nama font custom (mis. Poppins)" data-i18n-placeholder="ph.subtitle_font_custom" />
-            <div class="help" data-i18n="help.subtitle_font">Kalau font-nya ada di folder fonts, isi Fonts dir = fonts.</div>
-          </div>
-        </div>
-
         <div class="row">
-          <label class="label" data-i18n="label.subtitle_location">Subtitle Location</label>
-          <select id="subtitle_location" class="input">
-            <option value="bottom" selected data-i18n="opt.subtitle_location.bottom">Bottom</option>
-            <option value="center" data-i18n="opt.subtitle_location.center">Centered</option>
+          <label class="label" data-i18n="label.subtitle">Subtitle</label>
+          <select id="subtitle" class="input">
+            <option value="n" selected data-i18n="opt.no">No</option>
+            <option value="y" data-i18n="opt.yes">Yes</option>
           </select>
-          <div class="help" data-i18n="help.subtitle_location">Bottom = lebih natural buat Shorts. Centered = lebih “in your face”.</div>
+          <div class="help" data-i18n="help.subtitle">Kalau Yes, audio ditranskrip jadi teks lalu dibakar ke video.</div>
         </div>
 
-        <div class="row">
-          <label class="label" data-i18n="label.subtitle_fontsdir">Fonts dir (opsional)</label>
-          <input id="subtitle_fontsdir" class="input" value="fonts" placeholder="fonts atau C:\fonts (isi .ttf/.otf)" />
-          <div class="help" data-i18n="help.subtitle_fontsdir">Folder berisi file .ttf/.otf buat subtitle. Default: folder project <b>fonts</b>.</div>
-        </div>
+        <div id="subtitle_settings_wrap" class="hide">
+          <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="translate_subtitle" />
+            <label for="translate_subtitle" style="font-size: 14px; font-weight: 500; cursor: pointer;">Translate to English (Auto-Translate via Whisper)</label>
+          </div>
+          <div class="grid3">
+            <div class="row">
+              <label class="label" data-i18n="label.whisper_model">Model (Whisper)</label>
+              <select id="whisper_model" class="input">
+                <option value="tiny">tiny</option>
+                <option value="base">base</option>
+                <option value="small" selected>small</option>
+                <option value="medium">medium</option>
+                <option value="large-v3">large-v3</option>
+              </select>
+              <div class="help" data-i18n="help.whisper_model">Ini model AI buat transkripsi suara ke teks. Makin besar makin akurat, makin berat.</div>
+            </div>
+            <div class="row">
+              <label class="label" data-i18n="label.subtitle_font">Font Subtitle</label>
+              <select id="subtitle_font_select" class="input">
+                <option value="Plus Jakarta Sans" selected>Plus Jakarta Sans</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Roboto">Roboto</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Anton">Anton</option>
+                <option value="Arial">Arial</option>
+                <option value="custom" data-i18n="opt.custom">Custom…</option>
+              </select>
+              <input id="subtitle_font_custom" class="input hide" placeholder="Nama font custom (mis. Poppins)" data-i18n-placeholder="ph.subtitle_font_custom" />
+              <div class="help" data-i18n="help.subtitle_font">Kalau font-nya ada di folder fonts, isi Fonts dir = fonts.</div>
+            </div>
+            <div class="row">
+              <label class="label" data-i18n="label.subtitle_location">Subtitle Location</label>
+              <select id="subtitle_location" class="input">
+                <option value="bottom" selected data-i18n="opt.subtitle_location.bottom">Bottom</option>
+                <option value="center" data-i18n="opt.subtitle_location.center">Centered</option>
+              </select>
+              <div class="help" data-i18n="help.subtitle_location">Bottom = lebih natural buat Shorts. Centered = lebih “in your face”.</div>
+            </div>
+          </div>
 
-        <div class="grid3">
           <div class="row">
-            <label class="label">Subtitle Size</label>
-            <input id="subtitle_size" class="input" type="number" min="8" max="72" value="12" />
+            <label class="label" data-i18n="label.subtitle_fontsdir">Fonts dir (opsional)</label>
+            <input id="subtitle_fontsdir" class="input" value="fonts" placeholder="fonts atau C:\fonts (isi .ttf/.otf)" />
+            <div class="help" data-i18n="help.subtitle_fontsdir">Folder berisi file .ttf/.otf buat subtitle. Default: folder project <b>fonts</b>.</div>
           </div>
-          <div class="row">
-            <label class="label">Subtitle Color</label>
-            <input id="subtitle_color" type="color" class="input" style="padding: 0; height: 38px; width: 100%; cursor: pointer;" value="#ffffff" />
+
+          <div class="grid3">
+            <div class="row">
+              <label class="label">Subtitle Size</label>
+              <input id="subtitle_size" class="input" type="number" min="8" max="72" value="12" />
+            </div>
+            <div class="row">
+              <label class="label">Subtitle Color</label>
+              <input id="subtitle_color" type="color" class="input" style="padding: 0; height: 38px; width: 100%; cursor: pointer;" value="#ffffff" />
+            </div>
           </div>
-          <div class="row">
-            <label class="label">Shadow Size</label>
-            <input id="subtitle_shadow" class="input" type="number" min="0" max="10" value="1" />
+          <div class="grid3" style="margin-top: 12px;">
+            <div class="row">
+              <label class="label">Outline Size</label>
+              <input id="subtitle_outline" class="input" type="number" min="0" max="10" value="2" />
+            </div>
+            <div class="row">
+              <label class="label">Outline Color</label>
+              <input id="subtitle_outline_color" type="color" class="input" style="padding: 0; height: 38px; width: 100%; cursor: pointer;" value="#000000" />
+            </div>
           </div>
         </div>
 

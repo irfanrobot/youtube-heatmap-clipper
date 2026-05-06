@@ -355,6 +355,14 @@ function readPayload() {
     const b = subtitleColor.substr(5, 2);
     subtitleColor = `&H${b}${g}${r}`;
   }
+
+  let subtitleOutlineColor = $("subtitle_outline_color")?.value || "#000000";
+  if (subtitleOutlineColor.startsWith("#") && subtitleOutlineColor.length === 7) {
+    const r = subtitleOutlineColor.substr(1, 2);
+    const g = subtitleOutlineColor.substr(3, 2);
+    const b = subtitleOutlineColor.substr(5, 2);
+    subtitleOutlineColor = `&H${b}${g}${r}`;
+  }
   
   const custom_segments = [];
   document.querySelectorAll("#customSegmentsContainer > div").forEach(div => {
@@ -373,13 +381,15 @@ function readPayload() {
     padding: Number($("padding").value || 0),
     max_clips: Number($("max_clips").value || 6),
     subtitle: $("subtitle").value === "y",
+    translate_subtitle: $("translate_subtitle")?.checked || false,
     whisper_model: $("whisper_model").value,
     subtitle_font: subtitleFont,
     subtitle_location: $("subtitle_location").value,
     subtitle_fontsdir: $("subtitle_fontsdir").value || "",
     subtitle_size: Number($("subtitle_size")?.value || 12),
     subtitle_color: subtitleColor,
-    subtitle_shadow: Number($("subtitle_shadow")?.value || 1),
+    subtitle_outline: Number($("subtitle_outline")?.value || 2),
+    subtitle_outline_color: subtitleOutlineColor,
     custom_segments,
     duration: currentLocalDuration
   };
@@ -729,12 +739,16 @@ function addCustomSegment(startVal = "", endVal = "") {
 
 function toggleMode() {
   const isCustom = $("mode").value === "custom";
-  $("customBox").classList.toggle("hide", !isCustom);
-  $("scanBtn").classList.toggle("hide", isCustom);
+  $("customBox")?.classList.toggle("hide", !isCustom);
+  $("scanBtn")?.classList.toggle("hide", isCustom);
+  
+  $("padding_wrap")?.classList.toggle("hide", isCustom);
+  $("max_clips_wrap")?.classList.toggle("hide", isCustom);
+
   if (isCustom) {
     setSegControlsVisible(false);
-    $("segSelectedMeta").textContent = "";
-    if ($("customSegmentsContainer").children.length === 0) {
+    if ($("segSelectedMeta")) $("segSelectedMeta").textContent = "";
+    if ($("customSegmentsContainer") && $("customSegmentsContainer").children.length === 0) {
       addCustomSegment();
     }
   } else {
@@ -747,6 +761,7 @@ function toggleSource() {
   const isLocal = $("source_type")?.value === "local";
   $("url_row")?.classList.toggle("hide", isLocal);
   $("local_file_row")?.classList.toggle("hide", !isLocal);
+  $("mode_wrap")?.classList.toggle("hide", isLocal);
   
   if (isLocal) {
     $("mode").value = "custom";
@@ -755,17 +770,24 @@ function toggleSource() {
     toggleMode();
   } else {
     $("mode").disabled = false;
+    toggleMode();
   }
 }
 
 function toggleFont() {
   const isCustom = $("subtitle_font_select").value === "custom";
-  $("subtitle_font_custom").classList.toggle("hide", !isCustom);
+  $("subtitle_font_custom")?.classList.toggle("hide", !isCustom);
+}
+
+function toggleSubtitle() {
+  const isSubtitleNo = $("subtitle")?.value === "n";
+  $("subtitle_settings_wrap")?.classList.toggle("hide", isSubtitleNo);
 }
 
 $("source_type")?.addEventListener("change", toggleSource);
-$("mode").addEventListener("change", toggleMode);
-$("subtitle_font_select").addEventListener("change", toggleFont);
+$("mode")?.addEventListener("change", toggleMode);
+$("subtitle")?.addEventListener("change", toggleSubtitle);
+$("subtitle_font_select")?.addEventListener("change", toggleFont);
 $("addCustomSegmentBtn")?.addEventListener("click", () => addCustomSegment());
 $("url").addEventListener("input", debounce(preview, 500));
 $("scanBtn").addEventListener("click", scan);
@@ -786,5 +808,6 @@ currentLang = currentLang === "en" ? "en" : "id";
 applyI18n();
 toggleSource();
 toggleMode();
+toggleSubtitle();
 toggleFont();
 renderSegments([]);

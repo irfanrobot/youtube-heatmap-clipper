@@ -99,13 +99,15 @@ def run_job(job_id, payload):
         ratio = payload.get("ratio") or "9:16"
         force_shorts_ratio = bool(payload.get("force_shorts_ratio", False))
         subtitle = bool(payload.get("subtitle"))
+        translate_subtitle = bool(payload.get("translate_subtitle", False))
         whisper_model = payload.get("whisper_model") or "small"
         subtitle_font = payload.get("subtitle_font") or "Arial"
         subtitle_location = payload.get("subtitle_location") or "bottom"
         subtitle_fontsdir = payload.get("subtitle_fontsdir") or None
         subtitle_size = safe_int(payload.get("subtitle_size"), 12)
         subtitle_color = payload.get("subtitle_color") or "&HFFFFFF"
-        subtitle_shadow = safe_int(payload.get("subtitle_shadow"), 1)
+        subtitle_outline = safe_int(payload.get("subtitle_outline"), 2)
+        subtitle_outline_color = payload.get("subtitle_outline_color") or "&H000000"
         if not subtitle_fontsdir and os.path.isdir("fonts"):
             subtitle_fontsdir = "fonts"
         padding = safe_int(payload.get("padding"), 10)
@@ -119,8 +121,15 @@ def run_job(job_id, payload):
         core.SUBTITLE_LOCATION = subtitle_location
         core.SUBTITLE_SIZE = subtitle_size
         core.SUBTITLE_COLOR = subtitle_color
-        core.SUBTITLE_SHADOW = subtitle_shadow
-        core.PADDING = max(0, padding if padding is not None else 10)
+        core.SUBTITLE_OUTLINE = subtitle_outline
+        core.SUBTITLE_OUTLINE_COLOR = subtitle_outline_color
+        
+        # Disable padding for custom mode so start/end times match exactly
+        if mode == "custom":
+            core.PADDING = 0
+        else:
+            core.PADDING = max(0, padding if padding is not None else 10)
+            
         core.set_ratio_preset(ratio)
 
         job_dir = os.path.join("clips", job_id)
@@ -196,7 +205,12 @@ def run_job(job_id, payload):
         success = 0
         for idx, item in enumerate(targets, start=1):
             set_job(job_id, current=idx, status_text=f"clip {idx}/{len(targets)}")
-            ok = core.proses_satu_clip(video_id, item, idx, total_duration, crop, subtitle, event_hook=event_hook, is_local_file=is_local_file, force_shorts_ratio=force_shorts_ratio)
+            ok = core.proses_satu_clip(
+                video_id, item, idx, total_duration, crop, subtitle, 
+                event_hook=event_hook, is_local_file=is_local_file, 
+                force_shorts_ratio=force_shorts_ratio,
+                translate_subtitle=translate_subtitle
+            )
             if ok:
                 success += 1
             set_job(job_id, done=idx, success=success, outputs=list_outputs(job_dir))
